@@ -1,4 +1,5 @@
 #include <CL/opencl.h>
+#include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <stdio.h>
@@ -250,12 +251,20 @@ int main() {
   CL_CHECK(clSetKernelArg(kernel, 4, sizeof(cl_mem), (void *)&b_memobj));
   CL_CHECK(clSetKernelArg(kernel, 5, sizeof(cl_mem), (void *)&c_memobj));
 
+  // run kernel
   const size_t local[2] = {TS, TS / WPT};
   const size_t global[2] = {M, N / WPT};
   cl_event event;
+  printf("Execute the kernel\n");
+  auto time_start = std::chrono::high_resolution_clock::now();
   CL_CHECK(clEnqueueNDRangeKernel(command_queue, kernel, 2, NULL, global, local,
                                   0, NULL, &event));
   CL_CHECK(clWaitForEvents(1, &event));
+  auto time_end = std::chrono::high_resolution_clock::now();
+  double elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+                       time_end - time_start)
+                       .count();
+  printf("Elapsed time: %lg ms\n", elapsed);
 
   // get results from VRAM
   CL_CHECK(clEnqueueReadBuffer(command_queue, c_memobj, CL_TRUE, 0,
@@ -264,7 +273,7 @@ int main() {
 
   // verify results
   printf("Verify result\n");
-  float *C_cpu = malloc(M * N * sizeof(float));
+  float *C_cpu = (float *)malloc(M * N * sizeof(float));
   if (C_cpu == NULL) {
     printf("Not enough memory");
     cleanup();
@@ -274,12 +283,12 @@ int main() {
   int errors = 0;
 
   for (size_t i = 0; i < M * N; i++)
-    if (C_cpu[i] != c_memobj[i])
+    if (C_cpu[i] != C[i])
       errors++;
-  if (errors != 0) 
+  if (errors != 0)
     printf("FAILED! - %d errors\n", errors);
   else
-   printf("PASSED!\n");
+    printf("PASSED!\n");
 
   // free resureses
   cleanup();
