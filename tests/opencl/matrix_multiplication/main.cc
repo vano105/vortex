@@ -8,8 +8,8 @@
 #include <time.h>
 #include <unistd.h>
 
-#define TS 32
-#define WPT 8
+#define TS 4
+#define WPT 2
 
 #define CL_CHECK(_expr)                                                        \
   do {                                                                         \
@@ -91,9 +91,6 @@ static void cleanup() {
 }
 
 int main() {
-  if (!ocl_init())
-    throw std::runtime_error("Can't init OpenCL driver!");
-
   // find device and platform
   cl_uint platform_count = 0;
   CL_CHECK(clGetPlatformIDs(0, NULL, &platform_count));
@@ -164,7 +161,7 @@ int main() {
   CL_CHECK(errcode);
 
   // generate data
-  const size_t M = 32, N = 32, K = 32;
+  const int M = 128, N = 128, K = 128;
   float *A, *B, *C;
   A = (float *)(malloc(M * K * sizeof(float)));
   B = (float *)(malloc(N * K * sizeof(float)));
@@ -194,7 +191,7 @@ int main() {
 
   // load kernel text
   size_t kernel_size;
-  if (read_kernel_file("/Users/ivanhromov/Projects/summer_opencl_2024/myGemm/src/cl/kernel3.cl", &kernel_bin, &kernel_size) != 0) {
+  if (read_kernel_file("kernel.cl", &kernel_bin, &kernel_size) != 0) {
     cleanup();
     return -1;
   }
@@ -232,14 +229,13 @@ int main() {
   CL_CHECK(errcode);
 
   // set kernel arguments
-  CL_CHECK(clSetKernelArg(kernel, 0, sizeof(size_t), (void *)&M));
-  CL_CHECK(clSetKernelArg(kernel, 1, sizeof(size_t), (void *)&N));
-  CL_CHECK(clSetKernelArg(kernel, 2, sizeof(size_t), (void *)&K));
-  CL_CHECK(clSetKernelArg(kernel, 3, sizeof(cl_mem), &a_memobj));
-  CL_CHECK(clSetKernelArg(kernel, 4, sizeof(cl_mem), &b_memobj));
-  CL_CHECK(clSetKernelArg(kernel, 5, sizeof(cl_mem), &c_memobj));
+  CL_CHECK(clSetKernelArg(kernel, 0, sizeof(int), &M));
+  CL_CHECK(clSetKernelArg(kernel, 1, sizeof(int), &N));
+  CL_CHECK(clSetKernelArg(kernel, 2, sizeof(int), &K));
+  CL_CHECK(clSetKernelArg(kernel, 3, sizeof(cl_mem), (void *)&a_memobj));
+  CL_CHECK(clSetKernelArg(kernel, 4, sizeof(cl_mem), (void *)&b_memobj));
+  CL_CHECK(clSetKernelArg(kernel, 5, sizeof(cl_mem), (void *)&c_memobj));
 
-  // run calculating
   const size_t local[2] = {TS, TS / WPT};
   const size_t global[2] = {M, N / WPT};
   cl_event event;
@@ -255,7 +251,7 @@ int main() {
   // check results
   for (int i = 0; i < M; i++) {
     for (int j = 0; j < N; j++)
-      printf("%f\n", C[i * M + j]);
+      printf("%f ", C[i * M + j]);
     printf("\n");
   }
 
