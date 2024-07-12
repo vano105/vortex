@@ -1,7 +1,7 @@
 ROOT_DIR := $(realpath ../../..)
 include $(ROOT_DIR)/config.mk
 
-PROJECT := psort
+PROJECT := matrix_multiplication
 
 SRC_DIR := $(VORTEX_HOME)/tests/opencl/$(PROJECT)
 
