@@ -56,6 +56,19 @@ static int read_kernel_file(const char *filename, uint8_t **data,
   return 0;
 }
 
+static void sgemm_cpu(float *C, const float *A, const float *B, int M, int N,
+                      int K) {
+  for (int m = 0; m < M; ++m) {
+    for (int n = 0; n < N; ++n) {
+      float acc = 0;
+      for (int k = 0; k < K; ++k) {
+        acc += A[k * M + m] * B[n * K + k];
+      }
+      C[n * M + m] = acc;
+    }
+  }
+}
+
 cl_platform_id platform_id = NULL;
 cl_device_id device_id = NULL;
 cl_context context = NULL;
@@ -82,10 +95,10 @@ static void cleanup() {
     clReleaseMemObject(c_memobj);
   if (context)
     clReleaseContext(context);
-  //if (device_id)
-    //clReleaseDevice(device_id);
-  //if (platform_id)
-    //clReleasePlatform(platform_id);
+  // if (device_id)
+  // clReleaseDevice(device_id);
+  // if (platform_id)
+  // clReleasePlatform(platform_id);
   if (kernel_bin)
     free(kernel_bin);
 }
@@ -94,7 +107,8 @@ int main() {
   // find device and platform
   cl_uint platform_count = 0;
   CL_CHECK(clGetPlatformIDs(0, NULL, &platform_count));
-  cl_platform_id *platforms = (cl_platform_id *)malloc(platform_count * sizeof(cl_platform_id));
+  cl_platform_id *platforms =
+      (cl_platform_id *)malloc(platform_count * sizeof(cl_platform_id));
   if (platforms == NULL) {
     printf("Not enough memory");
     cleanup();
@@ -109,9 +123,10 @@ int main() {
     cl_platform_id platform = platforms[platform_index];
     cl_uint devices_count = 0;
 
-    CL_CHECK(clGetDeviceIDs(platform, CL_DEVICE_TYPE_ALL, 0, NULL,
-                            &devices_count));
-    cl_device_id *devices = (cl_device_id *)malloc(sizeof(cl_device_id) * devices_count);
+    CL_CHECK(
+        clGetDeviceIDs(platform, CL_DEVICE_TYPE_ALL, 0, NULL, &devices_count));
+    cl_device_id *devices =
+        (cl_device_id *)malloc(sizeof(cl_device_id) * devices_count);
     if (devices == NULL) {
       printf("Not enough memory");
       cleanup();
@@ -152,8 +167,8 @@ int main() {
   cl_context_properties context_properties[]{
       CL_CONTEXT_PLATFORM, cl_context_properties(platform_id), 0};
   cl_device_id devices[]{device_id};
-  cl_context context = clCreateContext(context_properties, 1, devices, NULL,
-                                       NULL, &errcode);
+  cl_context context =
+      clCreateContext(context_properties, 1, devices, NULL, NULL, &errcode);
   CL_CHECK(errcode);
 
   // create command queue
@@ -195,16 +210,15 @@ int main() {
     cleanup();
     return -1;
   }
-  program = clCreateProgramWithSource(
-      context, 1, (const char **)&kernel_bin, &kernel_size, &errcode);
+  program = clCreateProgramWithSource(context, 1, (const char **)&kernel_bin,
+                                      &kernel_size, &errcode);
   /*if (program == NULL) {
     cleanup();
     return -1;
   }*/
 
   // build program
-  cl_int build_status =
-    clBuildProgram(program, 1, devices, NULL, NULL, NULL);
+  cl_int build_status = clBuildProgram(program, 1, devices, NULL, NULL, NULL);
   // check building info
   size_t log_size = 0;
   CL_CHECK(clGetProgramBuildInfo(program, device_id, CL_PROGRAM_BUILD_LOG, 0,
@@ -239,8 +253,8 @@ int main() {
   const size_t local[2] = {TS, TS / WPT};
   const size_t global[2] = {M, N / WPT};
   cl_event event;
-  CL_CHECK(clEnqueueNDRangeKernel(command_queue, kernel, 2, NULL, global,
-                                  local, 0, NULL, &event));
+  CL_CHECK(clEnqueueNDRangeKernel(command_queue, kernel, 2, NULL, global, local,
+                                  0, NULL, &event));
   CL_CHECK(clWaitForEvents(1, &event));
 
   // get results from VRAM
@@ -248,12 +262,24 @@ int main() {
                                M * N * sizeof(float), C, 0, NULL, &event));
   CL_CHECK(clWaitForEvents(1, &event));
 
-  // check results
-  for (int i = 0; i < M; i++) {
-    for (int j = 0; j < N; j++)
-      printf("%f ", C[i * M + j]);
-    printf("\n");
+  // verify results
+  printf("Verify result\n");
+  float *C_cpu = malloc(M * N * sizeof(float));
+  if (C_cpu == NULL) {
+    printf("Not enough memory");
+    cleanup();
+    return -1;
   }
+  sgemm_cpu(C_cpu, A, B, M, N, K);
+  int errors = 0;
+
+  for (size_t i = 0; i < M * N; i++)
+    if (C_cpu[i] != c_memobj[i])
+      errors++;
+  if (errors != 0) 
+    printf("FAILED! - %d errors\n", errors);
+  else
+   printf("PASSED!\n");
 
   // free resureses
   cleanup();
