@@ -12,6 +12,8 @@
 #define TS 4
 #define WPT 2
 
+const int M = 128, N = 128, K = 128;
+
 #define CL_CHECK(_expr)                                                        \
   do {                                                                         \
     cl_int _err = _expr;                                                       \
@@ -104,7 +106,42 @@ static void cleanup() {
     free(kernel_bin);
 }
 
-int main() {
+static void parse_args(int argc, char **argv) {
+  int c;
+  while ((c = getopt(argc, argv, "M:N:K:h?")) != -1) {
+    switch (c) {
+    case 'M':
+      M = atoi(optarg);
+      break;
+    case 'N':
+      N = atoi(optarg);
+      break;
+    case 'K':
+      K = atoi(optarg);
+      break;
+    case 'h':
+    case '?': {
+      show_usage();
+      exit(0);
+    } break;
+    default:
+      show_usage();
+      exit(-1);
+    }
+  }
+
+  if (size < 2) {
+    printf("Error: invalid size!\n");
+    exit(-1);
+  }
+
+  printf("Workload size=%d\n", size);
+}
+
+int main(int argc, char **argv) {
+  // parse command arguments
+  parse_args(argc, argv);
+
   // find device and platform
   cl_uint platform_count = 0;
   CL_CHECK(clGetPlatformIDs(0, NULL, &platform_count));
@@ -177,7 +214,6 @@ int main() {
   CL_CHECK(errcode);
 
   // generate data
-  const int M = 128, N = 128, K = 128;
   float *A, *B, *C;
   A = (float *)(malloc(M * K * sizeof(float)));
   B = (float *)(malloc(N * K * sizeof(float)));
