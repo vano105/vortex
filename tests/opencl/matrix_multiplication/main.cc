@@ -8,7 +8,6 @@
 #include <sys/resource.h>
 #include <time.h>
 #include <unistd.h>
-#include <vortex>
 
 #define TS 4
 #define WPT 2
@@ -144,8 +143,9 @@ static void parse_args(int argc, char **argv) {
 int main(int argc, char **argv) {
   // parse command arguments
   parse_args(argc, argv);
-  printf("%d", VX_CAPS_NUM_CORES);
+  //printf("%d", VX_CAPS_NUM_CORES);
 
+/*
   // find device and platform
   cl_uint platform_count = 0;
   CL_CHECK(clGetPlatformIDs(0, NULL, &platform_count));
@@ -202,20 +202,21 @@ int main(int argc, char **argv) {
     printf("No device found");
     cleanup();
     return -1;
-  }
+  }*/
 
+  CL_CHECK(clGetPlatformIDs(1, &platform_id, NULL));
+  CL_CHECK(clGetDeviceIDs(platform_id, CL_DEVICE_TYPE_DEFAULT, 1, &device_id, NULL));
   // create context
-  cl_int errcode;
   cl_context_properties context_properties[]{
       CL_CONTEXT_PLATFORM, cl_context_properties(platform_id), 0};
   cl_device_id devices[]{device_id};
-  context =
-      clCreateContext(context_properties, 1, devices, NULL, NULL, &errcode);
-  CL_CHECK(errcode);
+  context = CL_CHECK2(clCreateContext(NULL, 1, &device_id, NULL, NULL, &_err));
 
+  char device_string[1024];
+  clGetDeviceInfo(device_id, CL_DEVICE_NAME, sizeof(device_string), &device_string, NULL);
+  printf("Using device: %s\n", device_string);
   // create command queue
-  command_queue = clCreateCommandQueue(context, device_id, 0, &errcode);
-  CL_CHECK(errcode);
+  command_queue = CL_CHECK2(clCreateCommandQueue(context, device_id, 0, &_err));
 
   // generate data
   float *A, *B, *C;
@@ -233,17 +234,14 @@ int main(int argc, char **argv) {
   }
 
   // create buffers
-  cl_mem a_memobj =
-      clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
-                     M * K * sizeof(float), A, &errcode);
-  CL_CHECK(errcode);
-  cl_mem b_memobj =
-      clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
-                     N * K * sizeof(float), B, &errcode);
-  CL_CHECK(errcode);
-  cl_mem c_memobj = clCreateBuffer(context, CL_MEM_WRITE_ONLY,
-                                   M * N * sizeof(float), NULL, &errcode);
-  CL_CHECK(errcode);
+  a_memobj =
+      CL_CHECK2(clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
+                     M * K * sizeof(float), A, &_err));
+  b_memobj =
+      CL_CHECK2(clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
+                     N * K * sizeof(float), B, &_err));
+  c_memobj = CL_CHECK2(clCreateBuffer(context, CL_MEM_WRITE_ONLY,
+                                   M * N * sizeof(float), NULL, &_err));
 
   // load kernel text
   size_t kernel_size;
@@ -251,15 +249,19 @@ int main(int argc, char **argv) {
     cleanup();
     return -1;
   }
-  program = clCreateProgramWithSource(context, 1, (const char **)&kernel_bin,
-                                      &kernel_size, &errcode);
-  /*if (program == NULL) {
+  program = CL_CHECK2(clCreateProgramWithSource(context, 1, (const char **)&kernel_bin,
+                                      &kernel_size, &_err));
+  if (program == NULL) {
     cleanup();
     return -1;
-  }*/
+  }
 
   // build program
-  cl_int build_status = clBuildProgram(program, 1, devices, NULL, NULL, NULL);
+  cl_int build_status = clBuildProgram(program, 1, &device_id, NULL, NULL, NULL);
+
+  // create kernel
+  kernel = CL_CHECK2(clCreateKernel(program, "myGEMM3", &_err));
+
   // check building info
   size_t log_size = 0;
   CL_CHECK(clGetProgramBuildInfo(program, device_id, CL_PROGRAM_BUILD_LOG, 0,
@@ -279,9 +281,6 @@ int main(int argc, char **argv) {
   }
   CL_CHECK(build_status);
 
-  // create kernel
-  cl_kernel kernel = clCreateKernel(program, "myGEMM3", &errcode);
-  CL_CHECK(errcode);
 
   // set kernel arguments
   CL_CHECK(clSetKernelArg(kernel, 0, sizeof(int), &M));
@@ -294,12 +293,12 @@ int main(int argc, char **argv) {
   // run kernel
   const size_t local[2] = {TS, TS / WPT};
   const size_t global[2] = {M, N / WPT};
-  cl_event event;
   printf("Execute the kernel\n");
   auto time_start = std::chrono::high_resolution_clock::now();
   CL_CHECK(clEnqueueNDRangeKernel(command_queue, kernel, 2, NULL, global, local,
-                                  0, NULL, &event));
-  CL_CHECK(clWaitForEvents(1, &event));
+                                  0, NULL, NULL));
+  CL_CHECK(clFinish(command_queue));
+  //CL_CHECK(clWaitForEvents(1, &event));
   auto time_end = std::chrono::high_resolution_clock::now();
   double elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
                        time_end - time_start)
@@ -308,8 +307,8 @@ int main(int argc, char **argv) {
 
   // get results from VRAM
   CL_CHECK(clEnqueueReadBuffer(command_queue, c_memobj, CL_TRUE, 0,
-                               M * N * sizeof(float), C, 0, NULL, &event));
-  CL_CHECK(clWaitForEvents(1, &event));
+                               M * N * sizeof(float), C, 0, NULL, NULL));
+  CL_CHECK(clFinish(command_queue));
 
   // verify results
   printf("Verify result\n");
@@ -332,5 +331,5 @@ int main(int argc, char **argv) {
 
   // free resureses
   cleanup();
-  return 0;
+  return errors;
 }
