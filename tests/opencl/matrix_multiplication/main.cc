@@ -8,11 +8,16 @@
 #include <sys/resource.h>
 #include <time.h>
 #include <unistd.h>
+#include <vortex>
 
 #define TS 4
 #define WPT 2
 
-const int M = 128, N = 128, K = 128;
+int M = 16, N = 16, K = 16;
+
+static void show_usage() {
+  printf("Usage: [-M number of rows in first matrix] [-N number of columns in first matrix] [-K number of columns in first matrix and rows in second matrix] [-h: help]\n");
+}
 
 #define CL_CHECK(_expr)                                                        \
   do {                                                                         \
@@ -98,8 +103,8 @@ static void cleanup() {
     clReleaseMemObject(c_memobj);
   if (context)
     clReleaseContext(context);
-  // if (device_id)
-  // clReleaseDevice(device_id);
+  if (device_id)
+    clReleaseDevice(device_id);
   // if (platform_id)
   // clReleasePlatform(platform_id);
   if (kernel_bin)
@@ -130,17 +135,16 @@ static void parse_args(int argc, char **argv) {
     }
   }
 
-  if (size < 2) {
+  if (M < 2 || N < 2 || K < 2) {
     printf("Error: invalid size!\n");
     exit(-1);
   }
-
-  printf("Workload size=%d\n", size);
 }
 
 int main(int argc, char **argv) {
   // parse command arguments
   parse_args(argc, argv);
+  printf("%d", VX_CAPS_NUM_CORES);
 
   // find device and platform
   cl_uint platform_count = 0;
@@ -156,7 +160,7 @@ int main(int argc, char **argv) {
 
   bool gpu_device_selected = false;
   bool any_device_selected = false;
-  for (int platform_index = 0; platform_index < platform_count;
+  for (int platform_index = 0; platform_index < (int)platform_count;
        ++platform_index) {
     cl_platform_id platform = platforms[platform_index];
     cl_uint devices_count = 0;
@@ -172,7 +176,7 @@ int main(int argc, char **argv) {
     }
     CL_CHECK(clGetDeviceIDs(platform, CL_DEVICE_TYPE_ALL, devices_count,
                             devices, NULL));
-    for (int device_index = 0; device_index < devices_count; ++device_index) {
+    for (int device_index = 0; device_index < (int)devices_count; ++device_index) {
       cl_device_id device = devices[device_index];
       cl_device_type device_type;
       CL_CHECK(clGetDeviceInfo(device, CL_DEVICE_TYPE, sizeof(device_type),
@@ -205,7 +209,7 @@ int main(int argc, char **argv) {
   cl_context_properties context_properties[]{
       CL_CONTEXT_PLATFORM, cl_context_properties(platform_id), 0};
   cl_device_id devices[]{device_id};
-  cl_context context =
+  context =
       clCreateContext(context_properties, 1, devices, NULL, NULL, &errcode);
   CL_CHECK(errcode);
 
@@ -318,7 +322,7 @@ int main(int argc, char **argv) {
   sgemm_cpu(C_cpu, A, B, M, N, K);
   int errors = 0;
 
-  for (size_t i = 0; i < M * N; i++)
+  for (size_t i = 0; i < size_t(M * N); i++)
     if (C_cpu[i] != C[i])
       errors++;
   if (errors != 0)
