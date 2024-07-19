@@ -1,5 +1,5 @@
-#define TS 4
-#define WPT 2
+#define TS 16
+#define WPT 8
 #define RTS (TS/WPT) 
 __kernel void myGEMM3(const int M, const int N, const int K,
                       const __global float* A,
