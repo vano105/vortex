@@ -9,9 +9,9 @@
 #include <time.h>
 #include <unistd.h>
 
-#define TS 4
+#define TS 16
 
-int M = 16, N = 16, K = 16;
+int M = 256, N = 256, K = 256;
 
 static void show_usage() {
   printf("Usage: [-M number of rows in first matrix] [-N number of columns in first matrix] [-K number of columns in first matrix and rows in second matrix] [-h: help]\n");
