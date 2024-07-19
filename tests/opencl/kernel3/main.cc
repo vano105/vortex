@@ -13,7 +13,7 @@
 #define WPT 8
 
 int M = 256, N = 256, K = 256;
-
+//bebra
 static void show_usage() {
   printf("Usage: [-M number of rows in first matrix] [-N number of columns in first matrix] [-K number of columns in first matrix and rows in second matrix] [-h: help]\n");
 }
