@@ -9,7 +9,7 @@
 #include <time.h>
 #include <unistd.h>
 
-#define TS 16
+#define TS 4
 
 int M = 256, N = 256, K = 256;
 

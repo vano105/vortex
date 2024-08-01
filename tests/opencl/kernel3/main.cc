@@ -9,10 +9,10 @@
 #include <time.h>
 #include <unistd.h>
 
-#define TS 16
-#define WPT 8
+#define TS 8
+#define WPT 4
 
-int M = 256, N = 256, K = 256;
+int M = 16, N = 16, K = 16;
 
 static void show_usage() {
   printf("Usage: [-M number of rows in first matrix] [-N number of columns in first matrix] [-K number of columns in first matrix and rows in second matrix] [-h: help]\n");
@@ -140,9 +140,13 @@ static void parse_args(int argc, char **argv) {
   }
 }
 
-int main(int argc, char **argv) {
-  // parse command arguments
+int main(int argc, char **argv) { // parse command arguments
   parse_args(argc, argv);
+  printf("M:%d\n", M);
+  printf("N:%d\n", N);
+  printf("K:%d\n", K);
+  printf("TS:%d\n", TS);
+  printf("WPT:%d\n", WPT);
   //printf("%d", VX_CAPS_NUM_CORES);
 
 /*
